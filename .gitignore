@@ -1,0 +1,13 @@
+# Dependencies and local configuration
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+
+# Local preview screenshots
+/preview-*.png
+
+# OS metadata
+.DS_Store
+Thumbs.db
