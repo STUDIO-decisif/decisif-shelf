@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "owner": "STUDIO-decisif",
+  "repo": "decisif-shelf-storage",
+  "branch": "main",
+  "mode": "github",
+  "iterations": 600000,
+  "salt": "VgV6qXsSjFPrL4RGBhBXqA==",
+  "iv": "usZCYnL/dRMxWYK0",
+  "ciphertext": "DVidgyifCHpoljqibFNzeP0vZoKLKABm0EGyfuw+DhgTSvPhG+/08Lx1UBW7jB4cvhCygkJJEo+MOR+bOTE56tJy0xdQEeaE1UGqDp+B38bgRwEntLkEPIaJ3Pe8Ubq8aFO3Yi2P8f2ltRaDJA=="
+}

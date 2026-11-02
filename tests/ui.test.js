@@ -1,57 +1,29 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import vm from 'node:vm';
-import {readFileSync} from 'node:fs';
-import {GitHubStorage,validateFile,fileCategory,formatSize} from '../docs/github.js';
-// Execute the real app against a small DOM stand-in; never write to GitHub.
-class Element {
-  constructor(tag='div') { this.tagName=tag;this.children=[];this.dataset={};this.value='';this.hidden=false;this.disabled=false;this.attributes={};this.textContent='';this.classes=new Set();this.classList={toggle:(name,on)=>{const active=on ?? !this.classes.has(name);active?this.classes.add(name):this.classes.delete(name);},add:name=>this.classes.add(name),remove:name=>this.classes.delete(name),contains:name=>this.classes.has(name)}; }
-  append(...children){this.children.push(...children);}
-  replaceChildren(...children){this.children=[...children];this.textContent='';}
-  setAttribute(key,value){this.attributes[key]=value;}
-  addEventListener(){}
-  querySelectorAll(tag){return this.children.filter(child=>child.tagName===tag);}
-  showModal(){this.open=true;}
-  close(){this.open=false;}
-  focus(){}
-  scrollIntoView(){}
+import {LoginMotion,InvitationMotion,KeyMorph} from '../docs/login-motion.js';
+import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';
+import {DemoStorage,validateBatch} from '../docs/storage.js';import {formatSize} from '../docs/github.js';
+class Element{constructor(){this.children=[];this.value='';this.textContent='';this.open=false;this.events={};this.attributes={};}append(...v){for(const child of v){child.parent=this;this.children.push(child);}}insertBefore(child,before){if(child.parent)child.remove();child.parent=this;const i=this.children.indexOf(before);if(i<0)this.children.push(child);else this.children.splice(i,0,child);}get lastElementChild(){return this.children.at(-1);}replaceChildren(...v){this.children=v;}setAttribute(k,v){this.attributes[k]=v;}removeAttribute(k){delete this.attributes[k];}addEventListener(k,f){this.events[k]=f;}showModal(){this.open=true;}close(){this.open=false;this.events.close?.();}focus(){}click(){}remove(){if(this.parent)this.parent.children=this.parent.children.filter(c=>c!==this);}}
+const timers=[];
+function boot(unseal=async()=> 'fake', store=new Map()){
+ const html=readFileSync(new URL('../docs/index.html',import.meta.url),'utf8'),ids=new Map([...html.matchAll(/id="([^"]+)"/g)].map(m=>[m[1],new Element()])),events={};
+ const context=vm.createContext({LoginMotion,InvitationMotion,KeyMorph,SuccessSound:class{prepare(){}play(){this.playCount=(this.playCount||0)+1;}stop(){}},document:{getElementById:id=>{assert.ok(ids.has(id),id);return ids.get(id);},createElement:()=>new Element(),body:new Element()},window:{addEventListener:(k,f)=>events[k]=f},sessionStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)},URL,Blob,DemoStorage,validateBatch,FileStorage:class{},formatSize,unseal,fetch:async()=>({ok:true,json:async()=>({mode:'demo'})}),setTimeout:(fn,delay)=>{timers.push({fn,delay});return 1;}});
+ vm.runInContext(readFileSync(new URL('../docs/app.js',import.meta.url),'utf8').replace(/^import .*;\r?$/gm,''),context);
+ return {ids,events,run:s=>vm.runInContext(s,context)};
 }
-function boot() {
-  const html=readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
-  const ids=new Map([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],new Element()]));
-  const filters=['all','document','image','other'].map(name=>{const el=new Element('button');el.dataset.filter=name;return el;});
-  ids.get('sort').value='name';
-  const footer=new Element();
-  const document={getElementById:id=>{assert.ok(ids.has(id),`missing element #${id}`);return ids.get(id);},querySelectorAll:()=>filters,querySelector:()=>footer,createElement:tag=>new Element(tag),createElementNS:(_,tag)=>new Element(tag),createTextNode:text=>({textContent:text}),addEventListener(){}};
-  const context=vm.createContext({document,navigator:{platform:'Win32'},window:{addEventListener(){}},localStorage:{getItem:()=>null,setItem(){},removeItem(){}},setTimeout:()=>1,clearTimeout(){},GitHubStorage,validateFile,fileCategory,formatSize,URL,console});
-  const source=readFileSync(new URL('../docs/app.js',import.meta.url),'utf8').replace(/^import .*?;\r?\n/,'');
-  vm.runInContext(source,context);
-  return {ids,filters,run:source=>vm.runInContext(source,context)};
-}
-const seed=`client={config:{owner:'test',repo:'shelf',branch:'main'},token:'mock',list:async()=>[]};entries=[{name:'z.pdf',type:'file',size:2048},{name:'a.jpg',type:'file',size:100},{name:'资料',type:'dir',size:0}];updateConnection();render();`;
-test('page boots; disconnected upload opens connection dialog',()=>{
-  const {ids}=boot();assert.equal(ids.get('file-count').textContent,'0 个项目');
-  ids.get('upload-button').onclick();assert.equal(ids.get('settings').open,true);
-});
-test('counts, filtering, search and clear work through application handlers',()=>{
-  const {ids,filters,run}=boot();run(seed);
-  assert.equal(ids.get('count-all').textContent,3);assert.equal(ids.get('count-image').textContent,1);
-  assert.equal(ids.get('file-count').textContent,'3 个项目');
-  filters[2].onclick();assert.equal(ids.get('file-count').textContent,'1 个项目');assert.equal(ids.get('page-title').textContent,'图片');
-  ids.get('search').value='missing';ids.get('search').oninput();assert.equal(ids.get('empty-title').textContent,'没有找到匹配的文件');assert.equal(ids.get('clear-search').hidden,false);
-  ids.get('clear-search').onclick();assert.equal(ids.get('file-count').textContent,'3 个项目');assert.equal(ids.get('empty-state').hidden,true);
-});
-test('sorting keeps folders first; grid switch exposes selected state',()=>{
-  const {ids,run}=boot();run(seed);ids.get('sort').value='size-desc';ids.get('sort').onchange();
-  const names=run(`Array.from(document.getElementById('file-list').children,row=>row.children[0].children[0].children[1].textContent).join(',')`);
-  assert.equal(names,'资料,z.pdf,a.jpg');
-  ids.get('view-grid').onclick();assert.equal(ids.get('table-wrap').classList.contains('grid-view'),true);assert.equal(ids.get('view-grid').attributes['aria-pressed'],'true');
-  ids.get('view-list').onclick();assert.equal(ids.get('table-wrap').classList.contains('grid-view'),false);
-});
-test('upload panel reports success and duplicate rejection',async()=>{
-  const {ids,run}=boot();run(seed);run(`client.upload=async()=>({});`);
-  await run(`uploadFiles([{name:'z.pdf',size:100},{name:'new.txt',size:5}])`);
-  assert.equal(ids.get('transfer-panel').hidden,false);assert.equal(ids.get('transfer-title').textContent,'上传完成 · 1 / 2 个成功');
-  assert.equal(ids.get('queue').children[0].className,'failed');assert.equal(ids.get('queue').children[1].className,'done');
-  ids.get('queue-close').onclick();assert.equal(ids.get('transfer-panel').hidden,true);
-});
+const submit={preventDefault(){}};
+test('locked page, key entry, successful unlock, selection and pagehide clearing',async()=>{const {ids,events}=boot();assert.equal(ids.get('upload').disabled,true);ids.get('key-open').onclick();assert.equal(ids.get('login').open,true);ids.get('key').value='example';await ids.get('login-form').onsubmit(submit);assert.equal(ids.get('login').open,false);assert.equal(ids.get('files').children.length,2);assert.equal(ids.get('key').value,'');ids.get('files').children[0].children[0].children[0].onclick();assert.equal(ids.get('download').disabled,false);events.pagehide();assert.equal(ids.get('files').children.length,0);assert.equal(ids.get('upload').disabled,true);});
+test('wrong key yields only error and never files',async()=>{const {ids}=boot(async()=>{throw Error('details');});ids.get('key').value='wrong';await ids.get('login-form').onsubmit(submit);assert.equal(ids.get('login-error').textContent,'error');assert.equal(ids.get('files').children.length,0);assert.equal(ids.get('confirm').disabled,false);});
+test('late unlock cannot restore a closed session',async()=>{let release;const {ids,events}=boot(()=>new Promise(resolve=>release=resolve));const pending=ids.get('login-form').onsubmit(submit);await new Promise(resolve=>setImmediate(resolve));events.pagehide();release('fake');await pending;assert.equal(ids.get('files').children.length,0);assert.equal(ids.get('upload').disabled,true);});
+
+test('file picker handler uploads bytes, renders metadata and rejects duplicates without losing list',async()=>{const {ids}=boot();await ids.get('login-form').onsubmit(submit);const f=new Blob(['upload payload']);f.name='new.txt';const target={files:[f],value:'selected'};await ids.get('file-input').onchange({target});assert.equal(target.value,'');assert.equal(ids.get('files').children.length,3);await ids.get('file-input').onchange({target});assert.equal(ids.get('error').textContent,'error');assert.equal(ids.get('files').children.length,3);});
+
+test('refresh restores session without unseal; key opens over existing list',async()=>{const store=new Map();const a=boot(undefined,store);a.ids.get('key').value='secret-key';await a.ids.get('login-form').onsubmit(submit);assert.equal(store.size,1);assert.ok(![...store.values()][0].includes('secret-key'));a.events.pagehide();assert.equal(store.size,1);let decryptions=0;const b=boot(async()=>{decryptions++;throw Error('must not decrypt');},store);assert.equal(b.ids.get('files').children.length,2);assert.equal(b.ids.get('key-open').attributes['aria-busy'],'true');await new Promise(resolve=>setImmediate(resolve));assert.equal(b.ids.get('files').children.length,2);assert.equal(decryptions,0);b.ids.get('key-open').onclick();assert.equal(store.size,1);assert.equal(b.ids.get('login').open,true);assert.equal(b.ids.get('files').children.length,2);});
+test('new empty browser session stays locked; changed encrypted config invalidates saved login',async()=>{const fresh=boot();assert.equal(fresh.ids.get('upload').disabled,true);const store=new Map([['decisif-shelf.session.v2',JSON.stringify({config:{mode:'github'},token:'fake'})]]);const changed=boot(undefined,store);await new Promise(resolve=>setImmediate(resolve));assert.equal(store.size,0);assert.equal(changed.ids.get('upload').disabled,true);});
+
+
+
+test('success sound follows commit, precedes listing and never plays for rejected upload',async()=>{const {ids,run}=boot();await ids.get('login-form').onsubmit(submit);const f=new Blob(['x']);f.name='audio-test.txt';let done;run('client.uploadFiles=()=>new Promise(resolve=>globalThis.finishCommit=resolve);client.listFiles=async()=>{throw Error("list unavailable");}');const pending=ids.get('file-input').onchange({target:{files:[f],value:''}});assert.equal(run('successSound.playCount||0'),0);run('finishCommit()');await pending;timers.filter(t=>t.delay===195).forEach(t=>t.fn());assert.equal(run('successSound.playCount'),1);run('client.uploadFiles=async()=>{throw Error("rejected");}');await ids.get('file-input').onchange({target:{files:[f],value:''}});assert.equal(run('successSound.playCount'),1);});
+test('only new file is pending; existing row survives render; success animates after commit',async()=>{const {ids,run}=boot();await ids.get('login-form').onsubmit(submit);const old=ids.get('files').children[0],oldName=old.children[0].children[0].textContent;run('client.uploadFiles=()=>new Promise(resolve=>globalThis.releaseUpload=resolve)');const f=new Blob(['x']);f.name='animated.txt';const pending=ids.get('file-input').onchange({target:{files:[f],value:''}});const newRow=ids.get('files').children.find(r=>r.children[0].children[0].textContent===f.name);assert.equal(newRow.className.trim(),'upload-pending');assert.ok(ids.get('files').children.includes(old));assert.ok(!old.className.includes('upload-'));run('releaseUpload()');await pending;assert.ok(run('uploadStates.get("animated.txt").phase')==='success');assert.equal(run('uploadStates.has('+JSON.stringify(oldName)+')'),false);assert.ok(ids.get('files').children.includes(old));});
+test('login keeps masked input while validating, then fades key, draws check, fades dialog',async()=>{let release;const {ids}=boot(()=>new Promise(r=>release=r));const log=[];for(const id of ['key','login-check','login'])ids.get(id).animate=(frames,options)=>{log.push({id,frames,duration:options.duration,key:ids.get('key').value});return {finished:Promise.resolve()};};ids.get('key-open').onclick();ids.get('key').value='fake-input';const pending=ids.get('login-form').onsubmit(submit);await new Promise(r=>setImmediate(r));assert.equal(ids.get('key').value,'fake-input');assert.equal(ids.get('login').open,true);release('fake-token');await pending;const end=log.slice(-3);assert.ok(log.some(x=>x.id==='key'&&x.frames.at(-1).opacity===0));assert.ok(log.some(x=>x.id==='login-check'));assert.equal(ids.get('login').open,false);});
+test('wrong key fades error in and typing fades it out without closing dialog',async()=>{const {ids}=boot(async()=>{throw Error('wrong');});const errorFrames=[];ids.get('login-error').animate=frames=>{errorFrames.push(frames);return {finished:Promise.resolve()};};ids.get('key-open').onclick();ids.get('key').value='wrong';await ids.get('login-form').onsubmit(submit);assert.equal(ids.get('login').open,true);assert.equal(ids.get('login-error').textContent,'error');assert.deepEqual(Array.from(errorFrames[0],f=>f.opacity),[0,1]);ids.get('key').oninput();assert.deepEqual(Array.from(errorFrames[1],f=>f.opacity),[1,0]);});
+test('local key success starts welcome before slow listing; listing failure is a workspace error',async()=>{const {ids}=boot();const original=DemoStorage.prototype.listFiles;let rejectList;DemoStorage.prototype.listFiles=()=>new Promise((_,reject)=>rejectList=reject);try{ids.get('key-open').onclick();ids.get('key').value='fake';const pending=ids.get('login-form').onsubmit(submit);await new Promise(r=>setImmediate(r));assert.equal(ids.get('login').open,true);assert.equal(ids.get('login').attributes['data-welcome'],'true');assert.equal(ids.get('files').children.length,0);rejectList(Error('offline'));await pending;assert.equal(ids.get('error').textContent,'error');assert.equal(ids.get('login-error').textContent,'');}finally{DemoStorage.prototype.listFiles=original;}});
+test('hover swaps invitation and reverses keyhole without changing login state',async()=>{const {ids}=boot();ids.get('invitation-words').onmouseenter();await new Promise(r=>setImmediate(r));assert.equal(ids.get('invitation-words').attributes['aria-label'],"Who's key can't find a keyhole?");assert.equal(ids.get('key-open').attributes['data-tail'],'1');ids.get('invitation-words').onmouseleave();await new Promise(r=>setImmediate(r));assert.equal(ids.get('invitation-words').attributes['aria-label'],'Bro if U’ve got a key, U won’t be issued a nice-guy card.');assert.equal(ids.get('login').open,false);});
