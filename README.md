@@ -14,7 +14,7 @@ A minimal, key-unlocked file shelf hosted on GitHub Pages. The website lives in 
 - Modern sans-serif invitation text matches the table labels, with faster character reveal. Upload feedback, button availability, focus rings, panel entry and exit use smooth transitions. Existing files keep their normal color during uploads.
 - The success check pauses for 300ms. Login corners are aligned with the input and Confirm controls. The panel appears in place by clearing its own blur, without sliding or scaling. Background blur animates its actual radius: up to 6px on desktop or 4px on narrow screens.
 - Theme switching has hover/press feedback and gradual palette transitions. An unavailable or unknown system color preference defaults to dark. Dark login panels have no glow or shadow.
-- Mobile layouts prevent horizontal page scrolling while preserving vertical scrolling and pinch zoom.
+- Mobile layouts prevent horizontal page scrolling while preserving vertical scrolling and pinch zoom. Explicit header grid tracks reserve independent space for key/keyhole and the theme control, keeping both inside narrow viewports.
 
 ## Run locally
 
