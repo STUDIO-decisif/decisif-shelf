@@ -62,5 +62,5 @@ test('network errors provide retry guidance without exposing secrets', async () 
 });
 test('type filters and readable sizes', () => {
   assert.equal(fileCategory('照片.JPG'),'image'); assert.equal(fileCategory('报告.pdf'),'document'); assert.equal(fileCategory('archive.zip'),'other');
-  assert.equal(formatSize(0),'0 B'); assert.equal(formatSize(1024),'1.0 KiB'); assert.equal(formatSize(25*1024*1024),'25 MiB');
+  assert.equal(formatSize(0),'0 B'); assert.equal(formatSize(999),'999 B'); assert.equal(formatSize(1000),'1.0 KB'); assert.equal(formatSize(1000000),'1.0 MB'); assert.equal(formatSize(1000000000),'1.0 GB');
 });

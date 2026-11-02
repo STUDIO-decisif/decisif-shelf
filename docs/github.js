@@ -18,9 +18,9 @@ export function fileCategory(name) {
   return 'other';
 }
 export function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ['KiB','MiB','GiB']; let n = bytes / 1024, i = 0;
-  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  if (bytes < 1000) return `${bytes} B`;
+  const units = ['KB','MB','GB']; let n = bytes / 1000, i = 0;
+  while (n >= 1000 && i < units.length - 1) { n /= 1000; i++; }
   return `${n.toFixed(n >= 10 ? 0 : 1)} ${units[i]}`;
 }
 function base64(buffer) {

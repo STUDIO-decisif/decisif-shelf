@@ -6,5 +6,5 @@
     "test": "node --test tests/*.test.js",
     "preview": "node scripts/preview.mjs"
   },
-  "version": "1.0.0"
+  "version": "1.0.1"
 }
